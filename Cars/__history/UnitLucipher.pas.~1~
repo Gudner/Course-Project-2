@@ -1,0 +1,117 @@
+{$O-}
+unit UnitLucipher;
+
+interface
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, ExtCtrls, UnitBaseClass;
+
+//Класс "светофор"
+
+type TLucipher = class(TBaseClass)
+      Direction:Boolean; //true = разрешает движение по горизонтали
+      constructor Create(row,column:integer);
+      function Move():boolean; override;
+      procedure Paint(Canvas:TCanvas); override;
+end;
+
+const SelfSwitch = 1000; //За сколько попыток светофор случайно переключится
+
+implementation
+uses UnitCar;
+
+var r,c:integer;
+//При инициализации выполняется эта секция
+{ TLucipher }
+
+constructor TLucipher.Create(row,column:integer);
+begin
+   Direction := random(2) = 0;
+   self.row := row;
+   self.column := column;
+end;
+
+procedure TLucipher.Paint(Canvas: TCanvas);
+var
+  Left,Right,Top,Bottom:integer;
+  X,Y:integer;
+  C1,C2:TColor;
+begin
+   //Светофор условно изображается как
+   //перечеркнутый по диагонали квадрат,
+   //одна из пар треугольников - зеленая, другая - красная
+   Left := (column-1) * CellSize;
+   Right := (column) * CellSize;
+   Top := (row-1) * CellSize;
+   Bottom := (row) * CellSize;
+   Canvas.Pen.Color := clBlack;
+   Canvas.Pen.Width := 1;
+   Canvas.Brush.Color := clWhite;
+   Canvas.Rectangle(Left,Top,Right,Bottom);
+   Canvas.MoveTo(Left,Top);
+   Canvas.LineTo(Right,Bottom);
+   Canvas.MoveTo(Left,Bottom);
+   Canvas.LineTo(Right,Top);
+   X := (Left + Right) div 2;
+   Y := (Top + Bottom) div 2;
+   if Direction then
+   begin
+     C1 := clRed;
+     C2 := clGreen;  //По горизонтали
+   end
+   else
+   begin
+     C1 := clGreen;
+     C2 := clRed;
+   end;
+   Canvas.Brush.Color := C2;
+   Canvas.FloodFill(X + 2,Y, clBlack, TFillStyle.fsBorder);
+   Canvas.FloodFill(X - 2,Y, clBlack, TFillStyle.fsBorder);
+
+   Canvas.Brush.Color := C1;
+   Canvas.FloodFill(X ,Y+2, clBlack, TFillStyle.fsBorder);
+   Canvas.FloodFill(X ,Y-2, clBlack, TFillStyle.fsBorder);
+end;
+
+function TLucipher.Move;
+var
+ Left,Right,Up,Down:integer;
+begin
+   Left := 0; Right := 0; Up := 0; Down := 0;
+   Result := true;
+
+    //Узнать количество машин
+    if column > 1 then Left := TownLength[row,column-1];
+    if column < TownSize then Right := TownLength[row,column+1];
+    if row > 1 then Up := TownLength[row-1,column];
+    if row < TownSize then Down := TownLength[row+1,column];
+    //Логика поведения светоформа простая:
+    //Если слева и справа автомобилей больше, чем сверху и снизу -
+    //то разрешить движение по горизонтали
+    //Если наоборот - то по вертикали
+    //Иначе - не изменять состояния.
+    if Left + Right > Up + Down then
+       Direction := true;
+    if Left + Right < Up + Down then
+       Direction := false;
+
+    //Иногда все же надо переключаться и по времени
+    if Left + Right = Up + Down then
+    begin
+        if random(SelfSwitch) = 0 then
+          Direction := not Direction;
+    end;
+
+
+end;
+
+initialization
+  for r := 1 to TownSize do
+    for c := 1 to TownSize do
+      if (r mod 2 = 1) and (c mod 2 = 1) then
+       begin
+         inc(TownLength[r,c]);
+         //SetLength(Town[r,c],1);
+         Town[r,c][1] := TLucipher.Create(r,c);
+       end;
+end.
